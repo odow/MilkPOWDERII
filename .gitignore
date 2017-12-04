@@ -1,0 +1,10 @@
+experiments/*
+*/*.cuts
+*/*.model
+*/*.results
+~*.xlsx
+*/*.html
+*/*.css
+*/*.js
+.ipynb_checkpoints
+*.svg
