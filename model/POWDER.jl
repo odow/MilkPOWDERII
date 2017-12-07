@@ -8,7 +8,7 @@
     This model can be used to build and run the model described in
 
         Dowson et al. (2017). A multi-stage stochastic optimization model of a
-        dairy farm. Manuscript in preparation.
+        dairy farm with spot-price uncertainty. Manuscript in preparation.
 
     The easiest way to run it is via the command line
 
