@@ -294,19 +294,29 @@ pricescenarios(1234, 1000, transition)
 
 weather = loadweatherdata("TGA.daily.df.csv", 31)
 model = Dict{String, Any}(
-    "model_name"              => "Powder",
+    "model_name"              => "PowderII - model one",
 
     "random_seed" => 1234, # for repeatability
-    "transition" => transition,
-    "prices"     => prices,
-    "weatherscenarios" => weatherscenarios(1234,1000),
-    "pricescenarios" => pricescenarios(1234,1000, transition),
+    "lambda"      => 0.5,
+    "beta"        => 0.25,
+    # "transition" => transition,
+    # "prices"     => prices,
+    # "weatherscenarios" => weatherscenarios(1234,1000),
+    # "pricescenarios" => pricescenarios(1234,1000, transition),
     # Weather data
     "niwa_data" => [[Dict("week"=>t,"year"=>i,"rainfall"=>weather[t][i].r, "evapotranspiration"=>weather[t][i].e) for i in 1:20] for t in 1:52],
-
+    # Price Options
+    "method"                  => "dynamic",
+    "transaction_cost"        => 0.015, # $/kg
+    "initial_price"           => 6.0,
+    "min_price"               => 3.0,
+    "max_price"               => 9.0,
+    "observations"            => JSON.parsefile("model_one_observations.json"),
+    "probabilities"           => JSON.parsefile("model_one_probabilities.json"),
+    "max_milk_contracting"    => 10_000.0,
     # SDDP Options
     "objective_bound"         => 1e6,
-    "number_cuts"             => 500,
+    "number_cuts"             => 2000,
     "number_simulations"      => 1000,
 
     # Time options
