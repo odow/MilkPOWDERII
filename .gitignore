@@ -1,10 +1,4 @@
 experiments/*
-*/*.cuts
-*/*.model
-*/*.results
-~*.xlsx
-*/*.html
-*/*.css
-*/*.js
+results/*
 .ipynb_checkpoints
 *.svg
