@@ -232,7 +232,11 @@ function buildPOWDER(parameters::Dict)
 
         if stage != 52
             @stageobjective(sp, (price) -> (
-                (price - parameters["transaction_cost"]) * milk_sales -
+                (
+                    price +
+                    parameters["futures_correction"][stage] -
+                    parameters["transaction_cost"]
+                ) * milk_sales -
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
                 parameters["supplement_price"] * b -
                 parameters["cost_irrigation"] * i -   # cost of irrigation ($/mm)

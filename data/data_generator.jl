@@ -313,6 +313,7 @@ model = Dict{String, Any}(
     "max_price"               => 9.0,
     "observations"            => JSON.parsefile("model_one_observations.json"),
     "probabilities"           => JSON.parsefile("model_one_probabilities.json"),
+    "futures_correction"      => JSON.parsefile("model_one_futures.json"),
     "max_milk_contracting"    => 10_000.0,
     # SDDP Options
     "objective_bound"         => 1e6,
