@@ -14,6 +14,7 @@
 
         julia POWDER.jl "path/to/parameters.json"
 =#
+@everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
 using SDDP, SDDPPro, JuMP, Gurobi, CPLEX, JSON
 
 """
@@ -54,12 +55,17 @@ function buildPOWDER(parameters::Dict)
         # foobar(k::Int) = 2^round(Int, log(k-1)/log(2)) + 1
         if biggest_price == smallest_price
             N = 1
-        elseif biggest_price - smallest_price < 3.0
-            N = 3
-        elseif 3 <= biggest_price - smallest_price < 9.0
-            N = 5
         else
-            N = 9
+            if haskey(parameters, "#price_ribs")
+                N = parameters["#price_ribs"]::Int
+            # else default
+            elseif biggest_price - smallest_price < 3.0
+                N = 3
+            elseif 3 <= biggest_price - smallest_price < 9.0
+                N = 5
+            else
+                N = 9
+            end
         end
         # the set of break-points
         locations = linspace(smallest_price, biggest_price, N)
@@ -233,8 +239,7 @@ function buildPOWDER(parameters::Dict)
         if stage != 52
             @stageobjective(sp, (price) -> (
                 (
-                    price +
-                    parameters["futures_correction"][stage] -
+                    min(9.0, price + parameters["futures_correction"][stage]) -
                     parameters["transaction_cost"]
                 ) * milk_sales -
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
