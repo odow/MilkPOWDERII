@@ -365,7 +365,7 @@ function runPOWDER(parameterfile::String)
     function milkrevenue(sim)
         y = 0.0
         for t in 1:51
-            y += sim[:milk_sales][t] * (sim[:price][t] - parameters["transaction_cost"])
+            y += sim[:milk_sales][t] * (sim[:price][t] + parameters["futures_correction"][t] - parameters["transaction_cost"])
         end
         return y + sim[:price][end] * sim[:M][end]
     end

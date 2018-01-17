@@ -42,7 +42,9 @@ function buildPOWDER(parameters::Dict)
 
         # our price model
         function modeldynamics(price, noise, stage, markovstate)
-            0.976580 * price + 0.142664 + noise
+            gt = 0.976580 * price[1] + 0.142664 + noise
+            at = price[2] + parameters["sales_curve"][stage] * gt
+            return (gt, at)
         end
 
         return DynamicPriceInterpolation(
