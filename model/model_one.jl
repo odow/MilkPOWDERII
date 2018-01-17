@@ -33,49 +33,38 @@ function buildPOWDER(parameters::Dict)
         noise_distribution = DiscreteDistribution(observations[t], probabilities[t])
 
         # get the biggest and smallest observations in a given week
-        smallest_observations = minimum.(observations)
-        biggest_observations = maximum.(observations)
+        min_observations = minimum.(observations)
+        max_observations = maximum.(observations)
 
         # the initial price in week 1
         initialprice = parameters["initial_price"]
 
         # calculate the smallest observable price in week t
-        smallest_price = max(
-            parameters["min_price"],
-            initialprice + sum(smallest_observations[1:t])
-        )
-        # calculate the biggest observable price in week t
-        biggest_price = min(
-            parameters["max_price"],
-            initialprice + sum(biggest_observations[1:t])
-        )
+        minimum_price = initialprice + sum(min_observations[1:t])
+        maximum_price = initialprice + sum(max_observations[1:t])
 
-        # the number of break points
-        # N = floor(Int, () / 1.0) + 1
-        # foobar(k::Int) = 2^round(Int, log(k-1)/log(2)) + 1
-        if biggest_price == smallest_price
+        if minimum_price == maximum_price
             N = 1
+        elseif haskey(parameters, "#price_ribs")
+            N = parameters["#price_ribs"]::Int
         else
-            if haskey(parameters, "#price_ribs")
-                N = parameters["#price_ribs"]::Int
-            # else default
-            elseif biggest_price - smallest_price < 3.0
-                N = 3
-            elseif 3 <= biggest_price - smallest_price < 9.0
-                N = 5
-            else
-                N = 9
-            end
+            N = 5
         end
+
         # the set of break-points
-        locations = linspace(smallest_price, biggest_price, N)
+        if N > 1
+            # to avoid numerical error
+            locations = collect(linspace(minimum_price-0.2, maximum_price+0.2, N))
+        else
+            locations = collect(linspace(minimum_price, maximum_price, N))
+        end
 
         # our price model
         function modeldynamics(price, noise, stage, markovstate)
             clamp(
                 price + noise,
-                parameters["min_price"],
-                parameters["max_price"]
+                minimum_price-0.1,
+                maximum_price+0.1
             )
         end
         if parameters["method"] == "static"
@@ -90,9 +79,10 @@ function buildPOWDER(parameters::Dict)
             return DynamicPriceInterpolation(
                      dynamics = modeldynamics,
                 initial_price = initialprice,
-                    min_price = smallest_price,
-                    max_price = biggest_price,
-                        noise = noise_distribution
+                    min_price = minimum_price-0.1,
+                    max_price = maximum_price+0.1,
+                        noise = noise_distribution,
+           lipschitz_constant = 5_000.0
 
             )
         end
@@ -239,7 +229,11 @@ function buildPOWDER(parameters::Dict)
         if stage != 52
             @stageobjective(sp, (price) -> (
                 (
-                    min(9.0, price + parameters["futures_correction"][stage]) -
+                    clamp(
+                        price + parameters["futures_correction"][stage],
+                        parameters["min_price"],
+                        parameters["max_price"]
+                    ) -
                     parameters["transaction_cost"]
                 ) * milk_sales -
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
@@ -252,7 +246,7 @@ function buildPOWDER(parameters::Dict)
             ))
         else
             @stageobjective(sp, (price) -> (
-                price * M - # forced to sell at Fonterra price
+                clamp(price, parameters["min_price"], parameters["max_price"]) * M - # forced to sell at Fonterra price
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
                 parameters["supplement_price"] * b -
                 parameters["cost_irrigation"] * i -   # cost of irrigation ($/mm)
@@ -323,7 +317,7 @@ function runPOWDER(parameterfile::String)
 
     # solve the model
     solve(m,
-        max_iterations=parameters["number_cuts"],
+        max_iterations=10*parameters["number_cuts"],
         cut_output_file="$(name).cuts",
         log_file="$(name).log",
         cut_selection_frequency = 10,

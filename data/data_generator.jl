@@ -306,7 +306,7 @@ model = Dict{String, Any}(
     # Weather data
     "niwa_data" => [[Dict("week"=>t,"year"=>i,"rainfall"=>weather[t][i].r, "evapotranspiration"=>weather[t][i].e) for i in 1:20] for t in 1:52],
     # Price Options
-    "method"                  => "static",
+    "method"                  => "dynamic",
     "transaction_cost"        => 0.015, # $/kg
     "initial_price"           => 6.0,
     "min_price"               => 3.0,
@@ -317,7 +317,7 @@ model = Dict{String, Any}(
     "futures_correction"      => JSON.parsefile("model_one_futures.json"),
     "max_milk_contracting"    => 2000.0,
     # SDDP Options
-    "objective_bound"         => 1e6,
+    "objective_bound"         => 1e5,
     "number_cuts"             => 1000,
     "number_simulations"      => 1000,
 
@@ -349,7 +349,7 @@ model = Dict{String, Any}(
     "final_pasture_cover"     => 2500.0, # kg/Ha
     # animal model options
     "energy_correction_factor" => 1.1, # correction term to align aniaml model parameters with case study
-    "maximum_milk_production" => 10_000, # bound on total production kgMS/Year
+    "maximum_milk_production" => 2_000, # bound on total production kgMS/Year
     "stocking_rate"           => 3.0,    # Cows/Ha
     "maximum_lactation"       => 44,     # weeks
     "energy_for_maintenance"  => 54.0 * 7, # MJ/Cow/week
