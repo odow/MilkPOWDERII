@@ -297,7 +297,7 @@ model = Dict{String, Any}(
     "model_name"              => "NeutralWithContracting",
 
     "random_seed" => 1234, # for repeatability
-    "lambda"      => 1.0,
+    "lambda"      => 0.5,
     "beta"        => 0.25,
     # "transition" => transition,
     # "prices"     => prices,
@@ -312,9 +312,12 @@ model = Dict{String, Any}(
     "min_price"               => 3.0,
     "max_price"               => 9.0,
     "#price_ribs"             => 9,
-    "observations"            => JSON.parsefile("model_one_observations.json"),
-    "probabilities"           => JSON.parsefile("model_one_probabilities.json"),
-    "futures_correction"      => JSON.parsefile("model_one_futures.json"),
+    # "observations"            => JSON.parsefile("model_one_observations.json"),
+    # "probabilities"           => JSON.parsefile("model_one_probabilities.json"),
+    # "futures_correction"      => JSON.parsefile("model_one_futures.json"),
+    "model_two_observations"  => JSON.parsefile("model_two_errors.json"),
+    "sales_curve"             => JSON.parsefile("sales_curve.json"),
+    "auction_weeks"           => JSON.parsefile("auction_weeks.json"),
     "max_milk_contracting"    => 2000.0,
     # SDDP Options
     "objective_bound"         => 1e5,

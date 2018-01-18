@@ -25,11 +25,8 @@ Construct the `SDDPModel` for POWDER given a dictionary of parameters.
 function buildPOWDER(parameters::Dict)
     # This function builds our value function
     function valuefunction(t, i)
-        # first, convert to Vector{Float64}
-        observations = [Float64.(x) for x in parameters["observations"]]
-
         # form a discrete distribution
-        noise_distribution = DiscreteDistribution(observations)
+        noise_distribution = DiscreteDistribution(Float64.(parameters["model_two_observations"]))
 
         # the initial price in week 1
         initialprice = (parameters["initial_price"], 0.0)
@@ -42,10 +39,16 @@ function buildPOWDER(parameters::Dict)
 
         # our price model
         function modeldynamics(price, noise, stage, markovstate)
-            gt = 0.976580 * price[1] + 0.142664 + noise
-            at = price[2] + parameters["sales_curve"][stage] * gt
-            return (gt, at)
+            if stage in parameters["auction_weeks"]
+                gt = 0.96 * price[1] + 0.252 + noise
+                at = price[2] + parameters["sales_curve"][findfirst(parameters["auction_weeks"], stage)] * gt
+                return (gt, at)
+            else
+                return price
+            end
         end
+
+
 
         return DynamicPriceInterpolation(
                  dynamics = modeldynamics,
@@ -65,7 +68,7 @@ function buildPOWDER(parameters::Dict)
                      # solver = CplexSolver(CPX_PARAM_SCRIND=0, CPX_PARAM_LPMETHOD=2),
               objective_bound = parameters["objective_bound"],
               risk_measure = NestedAVaR(lambda=parameters["lambda"], beta=parameters["beta"]),
-              value_function = staticvaluefunction
+              value_function = valuefunction
                 ) do sp, stage
 
         # load the stagewise independent noises
@@ -79,6 +82,14 @@ function buildPOWDER(parameters::Dict)
 
         # index of soil fertility estimated from average seasonal pasture growth
         κ = parameters["soil_fertility"] # actual growth was too low
+
+        function futures_contribution(gt, w, auction)
+            y = 0.0
+            for i in (auction+1):length(w)
+                y += w[i] * (0.96 ^ (i - auction) * gt + 0.252 * sum(0.96^(j-1) for j in 1:(i-auction)))
+            end
+            y
+        end
 
         # pasture growth as a function of pasture cover
         g(p, gmax=gₘ, pmax=Pₘ) = 4 * gmax / pmax * p * (1 - p / pmax)
@@ -196,9 +207,10 @@ function buildPOWDER(parameters::Dict)
         end)
 
         if stage != 52
+            auction = findlast(x->x<=stage, parameters["auction_weeks"])
             @stageobjective(sp, (price) -> (
                 (
-                    min(9.0, price + parameters["futures_correction"][stage]) -
+                    price[2] + futures_contribution(price[1], parameters["sales_curve"], auction)-
                     parameters["transaction_cost"]
                 ) * milk_sales -
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
@@ -211,7 +223,7 @@ function buildPOWDER(parameters::Dict)
             ))
         else
             @stageobjective(sp, (price) -> (
-                price * M - # forced to sell at Fonterra price
+                price[2] * M - # forced to sell at Fonterra price
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
                 parameters["supplement_price"] * b -
                 parameters["cost_irrigation"] * i -   # cost of irrigation ($/mm)
@@ -255,7 +267,8 @@ function simulatemodel(fileprefix::String, m::SDDPModel, parameters)
     SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:ev][t], title="Actual Evapotranspiration")
     SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->parameters["niwa_data"][t][results[i][:noise][t]]["evapotranspiration"], title="Potential Evapotranspiration")
     SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->parameters["niwa_data"][t][results[i][:noise][t]]["rainfall"], title="Rainfall")
-    SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:price][t], title="Price")
+    SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:price][t][2], title="Price")
+    SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:price][t][1], title="GDT")
     SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:milk_sales][t], title="Milk Sales")
     SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:mlk][t], title="Milk")
     SDDP.addplot!(p, 1:NSIM, 1:52, (i,t)->results[i][:fₚ][t], title="Feed Pasture")
@@ -282,10 +295,10 @@ function runPOWDER(parameterfile::String)
 
     # solve the model
     solve(m,
-        max_iterations=parameters["number_cuts"],
+        max_iterations=100,
         cut_output_file="$(name).cuts",
         log_file="$(name).log",
-        cut_selection_frequency = 10,
+        # cut_selection_frequency = 10,
         print_level=2
     )
 
@@ -298,18 +311,18 @@ function runPOWDER(parameterfile::String)
     # build summary results table
     headers = [
         "Lactation Length (Weeks) ",
-        "Milk Production (kgMS)",
+        "Milk Production (kg)",
         "per Hectare",
         "per Cow",
         "Milk Revenue (\\\$/Ha)",
         "Feed Consumed (t/Ha)",
-        "grown on-farm",
-        "grown off-farm",
+        "Pasture",
+        "Palm Kernel",
         "\\% Feed Imported",
-        "Supplement Expense (\\\$/Ha)",
+        "Palm Kernel Expense (\\\$/Ha)",
         "Fixed Expense (\\\$/Ha)",
         "Operating Profit (\\\$/Ha)",
-        "FEI Penalty"
+        "Fat Evaluation Index Penalty"
     ]
 
     benchmark = [

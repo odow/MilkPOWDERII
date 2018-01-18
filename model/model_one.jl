@@ -333,18 +333,18 @@ function runPOWDER(parameterfile::String)
     # build summary results table
     headers = [
         "Lactation Length (Weeks) ",
-        "Milk Production (kgMS)",
+        "Milk Production (kg)",
         "per Hectare",
         "per Cow",
         "Milk Revenue (\\\$/Ha)",
         "Feed Consumed (t/Ha)",
-        "grown on-farm",
-        "grown off-farm",
+        "Pasture",
+        "Palm Kernel",
         "\\% Feed Imported",
-        "Supplement Expense (\\\$/Ha)",
+        "Palm Kernel Expense (\\\$/Ha)",
         "Fixed Expense (\\\$/Ha)",
         "Operating Profit (\\\$/Ha)",
-        "FEI Penalty"
+        "Fat Evaluation Index Penalty"
     ]
 
     benchmark = [
