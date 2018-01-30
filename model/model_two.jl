@@ -14,7 +14,7 @@
 
         julia POWDER.jl "path/to/parameters.json"
 =#
-# @everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
+@everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
 using SDDP, SDDPPro, JuMP, Gurobi, CPLEX, JSON
 
 """
@@ -55,8 +55,9 @@ function buildPOWDER(parameters::Dict)
             initial_price = initialprice,
                 min_price = min_price,
                 max_price = max_price,
-                    noise = noise_distribution
-
+                    noise = noise_distribution,
+       lipschitz_constant = 5_000.0,
+       cut_oracle = SDDPPro.MaxActivityOracle(typeof(initialprice), 5_000)
         )
     end
     m = SDDPModel(
@@ -64,9 +65,9 @@ function buildPOWDER(parameters::Dict)
                        stages = parameters["number_of_weeks"],
                        # Change this to choose a different solver
                        # Method = 1 => Dual Simplex
-                       solver = GurobiSolver(OutputFlag=0, Method=0),
+                       solver = GurobiSolver(OutputFlag=0, Method=1),
                      # solver = CplexSolver(CPX_PARAM_SCRIND=0, CPX_PARAM_LPMETHOD=2),
-              objective_bound = parameters["objective_bound"],
+              objective_bound =parameters["objective_bound"],
               risk_measure = NestedAVaR(lambda=parameters["lambda"], beta=parameters["beta"]),
               value_function = valuefunction
                 ) do sp, stage
@@ -295,10 +296,10 @@ function runPOWDER(parameterfile::String)
 
     # solve the model
     solve(m,
-        max_iterations=100,
+        max_iterations=10*parameters["number_cuts"],
         cut_output_file="$(name).cuts",
         log_file="$(name).log",
-        # cut_selection_frequency = 10,
+        cut_selection_frequency = 100,
         print_level=2
     )
 
