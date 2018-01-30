@@ -57,7 +57,7 @@ function buildPOWDER(parameters::Dict)
                 max_price = max_price,
                     noise = noise_distribution,
        lipschitz_constant = 5_000.0,
-       cut_oracle = SDDPPro.MaxActivityOracle(typeof(initialprice), 5_000)
+       cut_oracle = SDDPPro.NanniciniOracle(typeof(initialprice), 500)
         )
     end
     m = SDDPModel(
@@ -65,7 +65,7 @@ function buildPOWDER(parameters::Dict)
                        stages = parameters["number_of_weeks"],
                        # Change this to choose a different solver
                        # Method = 1 => Dual Simplex
-                       solver = GurobiSolver(OutputFlag=0, Method=1),
+                       solver = GurobiSolver(OutputFlag=0),
                      # solver = CplexSolver(CPX_PARAM_SCRIND=0, CPX_PARAM_LPMETHOD=2),
               objective_bound =parameters["objective_bound"],
               risk_measure = NestedAVaR(lambda=parameters["lambda"], beta=parameters["beta"]),
@@ -84,12 +84,13 @@ function buildPOWDER(parameters::Dict)
         # index of soil fertility estimated from average seasonal pasture growth
         κ = parameters["soil_fertility"] # actual growth was too low
 
-        function futures_contribution(gt, w, auction)
-            y = 0.0
+        function futures_contribution(w, auction)
+            a,b = 0.0,0.0
             for i in (auction+1):length(w)
-                y += w[i] * (0.96 ^ (i - auction) * gt + 0.252 * sum(0.96^(j-1) for j in 1:(i-auction)))
+                a += w[i] * (0.96 ^ (i - auction))
+                b += w[i] * (0.252 * sum(0.96^(j-1) for j in 1:(i-auction)))
             end
-            y
+            a,b
         end
 
         # pasture growth as a function of pasture cover
@@ -209,9 +210,10 @@ function buildPOWDER(parameters::Dict)
 
         if stage != 52
             auction = findlast(x->x<=stage, parameters["auction_weeks"])
+            a,b = futures_contribution(parameters["sales_curve"], auction)
             @stageobjective(sp, (price) -> (
                 (
-                    price[2] + futures_contribution(price[1], parameters["sales_curve"], auction)-
+                    price[2] + a*price[1]+b -
                     parameters["transaction_cost"]
                 ) * milk_sales -
                 # cost of supplement ($/kgDM). Incl %DM from wet, storage loss, wastage
@@ -344,9 +346,12 @@ function runPOWDER(parameterfile::String)
     function milkrevenue(sim)
         y = 0.0
         for t in 1:51
-            y += sim[:milk_sales][t] * (sim[:price][t][1] - parameters["transaction_cost"])
+            auction = findlast(x->x<=t, parameters["auction_weeks"])
+            (a,b) = futures_contribution(parameters["sales_curve"], auction)
+            price = sim[:price][t][2] +  a * sim[:price][t][1] + b - parameters["transaction_cost"]
+            y += sim[:milk_sales][t] * price
         end
-        return y + sim[:price][end][1] * sim[:M][end]
+        return y + sim[:price][end][2] * sim[:M][end]
     end
     simquant(x) = quantile(x, [0.0, 0.25, 0.5, 0.75, 1.0])
     data = Array{Any}(13, 5)
