@@ -320,7 +320,7 @@ model = Dict{String, Any}(
     "auction_weeks"           => JSON.parsefile("auction_weeks.json"),
     "max_milk_contracting"    => 2000.0,
     # SDDP Options
-    "objective_bound"         => 1e5,
+    "objective_bound"         => 25_000,
     "number_cuts"             => 1000,
     "number_simulations"      => 1000,
 

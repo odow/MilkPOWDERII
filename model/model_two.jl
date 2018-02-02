@@ -14,7 +14,7 @@
 
         julia POWDER.jl "path/to/parameters.json"
 =#
-# @everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
+@everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
 using SDDP, SDDPPro, JuMP, Gurobi, CPLEX, JSON
 
 function weeks(month::Int)
@@ -74,7 +74,7 @@ function buildPOWDER(parameters::Dict)
                        stages = 12,
                        # Change this to choose a different solver
                        # Method = 1 => Dual Simplex
-                       solver = GurobiSolver(OutputFlag=0, Method=0),
+                       solver = GurobiSolver(OutputFlag=0),
                      # solver = CplexSolver(CPX_PARAM_SCRIND=0, CPX_PARAM_LPMETHOD=2),
               objective_bound = 20_000, #parameters["objective_bound"],
               risk_measure = NestedAVaR(lambda=parameters["lambda"], beta=parameters["beta"]),
@@ -100,7 +100,7 @@ function buildPOWDER(parameters::Dict)
             for i in (t+1):length(w)
                 y += w[i] * (0.945 ^ (i - t) * gt + 0.338 * sum(0.945^(j-1) for j in 1:(i-t)))
             end
-            y
+            a,b
         end
 
         # pasture growth as a function of pasture cover
@@ -314,7 +314,7 @@ function runPOWDER(parameterfile::String)
         max_iterations=5000,
         cut_output_file="$(name).cuts",
         log_file="$(name).log",
-        # cut_selection_frequency = 10,
+        cut_selection_frequency = 100,
         print_level=2
     )
 
@@ -361,7 +361,7 @@ function runPOWDER(parameterfile::String)
         for t in 1:11
             y += sim[:milk_sales][t] * (sim[:price][t][1] - parameters["transaction_cost"])
         end
-        return y + sim[:price][end][1] * sim[:M][end]
+        return y + sim[:price][end][2] * sim[:M][end]
     end
     simquant(x) = quantile(x, [0.0, 0.25, 0.5, 0.75, 1.0])
     data = Array{Any}(13, 5)
