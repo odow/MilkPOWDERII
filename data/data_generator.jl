@@ -294,7 +294,7 @@ pricescenarios(1234, 1000, transition)
 
 weather = loadweatherdata("TGA.daily.df.csv", 31)
 model = Dict{String, Any}(
-    "model_name"              => "NeutralWithContracting",
+    "model_name"              => "AverseWithContracting",
 
     "random_seed" => 1234, # for repeatability
     "lambda"      => 0.5,
@@ -322,7 +322,7 @@ model = Dict{String, Any}(
     # SDDP Options
     "objective_bound"         => 25_000,
     "number_cuts"             => 1000,
-    "number_simulations"      => 1000,
+    "number_simulations"      => 5000,
 
     # Time options
     "first_week"              => 31, # 1 August

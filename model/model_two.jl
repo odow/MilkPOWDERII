@@ -14,17 +14,17 @@
 
         julia POWDER.jl "path/to/parameters.json"
 =#
-@everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
+# @everywhere ENV["GRB_LICENSE_FILE"] = "C:/Users/odow003"
 using SDDP, SDDPPro, JuMP, Gurobi, CPLEX, JSON
 
-function weeks(month::Int)
-    offset = 4 * (month - 1) + floor(Int, (month-1) / 3)
-    if mod(month, 3) == 0
-        # five weeks
-        offset + (1:5)
+@everywhere function weeks(t::Int, T::Int=24)
+    Tl = floor(Int, 52 / T)
+    modulus = round(Int, T / (52 - Tl * T))
+    offset = Tl * (t - 1) + floor(Int, (t-1) / modulus)
+    if mod(t, modulus) == 0
+        offset + (1:(Tl + 1))
     else
-        # four weeks
-        offset + (1:4)
+        offset + (1:Tl)
     end
 end
 
@@ -53,9 +53,9 @@ function buildPOWDER(parameters::Dict)
         # our price model
         function modeldynamics(price, noise, month, markovstate)
             if month == 1
-                return price
+                return (price[1], price[2] + parameters["sales_curve"][1] * price[1])
             else
-                gt = 0.945 * price[1] + 0.338 + noise
+                gt = 0.96 * price[1] + 0.252 + noise
                 at = price[2] + parameters["sales_curve"][month] * gt
                 return (gt, at)
             end
@@ -71,7 +71,7 @@ function buildPOWDER(parameters::Dict)
     end
     m = SDDPModel(
                         sense = :Max,
-                       stages = 12,
+                       stages = 24,
                        # Change this to choose a different solver
                        # Method = 1 => Dual Simplex
                        solver = GurobiSolver(OutputFlag=0),
@@ -98,9 +98,9 @@ function buildPOWDER(parameters::Dict)
         function futures_contribution(gt, w, t)
             y = 0.0
             for i in (t+1):length(w)
-                y += w[i] * (0.945 ^ (i - t) * gt + 0.338 * sum(0.945^(j-1) for j in 1:(i-t)))
+                y += w[i] * (0.96 ^ (i - t) * gt + 0.252 * sum(0.96^(j-1) for j in 1:(i-t)))
             end
-            a,b
+            y
         end
 
         # pasture growth as a function of pasture cover
@@ -222,7 +222,7 @@ function buildPOWDER(parameters::Dict)
             Δ[1] >= cow_per_day * (0.75 + 1.00 * (b / cow_per_day - 5))
         end)
 
-        if month != 12
+        if month != 24
             # auction = findlast(x->x<=stage, parameters["auction_weeks"])
             @stageobjective(sp, (price) -> (
                 (
@@ -272,26 +272,26 @@ function simulatemodel(fileprefix::String, m::SDDPModel, parameters)
     results = simulate(m, NSIM, [:P, :C, :C₀, :W, :M, :fₛ, :fₚ, :gr, :mlk, :ev, :b, :i, :h, :Δ, :milk, :price, :milk_sales])
 
     p = SDDP.newplot()
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:stageobjective][t], title="Objective", cumulative=true)
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:P][t], title="Pasture Cover")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:stageobjective][t], title="Objective", cumulative=true)
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:P][t], title="Pasture Cover")
     # SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:Q][t], title="Supplement")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:W][t], title="Soil Moisture")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:C][t], title="Cows Milking")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:M][t], title="Unsold Milk")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:milk][t] / 7 / 3 / length(weeks(t)), title="Milk Production / Cow")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:gr][t], title="Growth")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:ev][t], title="Actual Evapotranspiration")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:W][t], title="Soil Moisture")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:C][t], title="Cows Milking")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:M][t], title="Unsold Milk")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:milk][t] / 7 / 3 / length(weeks(t)), title="Milk Production / Cow")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:gr][t], title="Growth")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:ev][t], title="Actual Evapotranspiration")
     # SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->parameters["niwa_data"][t][results[i][:noise][t]]["evapotranspiration"], title="Potential Evapotranspiration")
     # SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->parameters["niwa_data"][t][results[i][:noise][t]]["rainfall"], title="Rainfall")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:price][t][2], title="Price")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:price][t][1], title="GDT")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:milk_sales][t], title="Milk Sales")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:mlk][t], title="Milk")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:fₚ][t], title="Feed Pasture")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:fₛ][t], title="Feed Silage")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:b][t], title="Feed PKE")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:i][t], title="Irrigation")
-    SDDP.addplot!(p, 1:NSIM, 1:12, (i,t)->results[i][:h][t], title="Harvest")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:price][t][2], title="Price")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:price][t][1], title="GDT")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:milk_sales][t], title="Milk Sales")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:mlk][t], title="Milk")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:fₚ][t], title="Feed Pasture")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:fₛ][t], title="Feed Silage")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:b][t], title="Feed PKE")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:i][t], title="Irrigation")
+    SDDP.addplot!(p, 1:NSIM, 1:24, (i,t)->results[i][:h][t], title="Harvest")
     SDDP.show("$(fileprefix).html", p)
     SDDP.save!("$(fileprefix).results", results)
     results
@@ -314,7 +314,7 @@ function runPOWDER(parameterfile::String)
         max_iterations=5000,
         cut_output_file="$(name).cuts",
         log_file="$(name).log",
-        cut_selection_frequency = 100,
+        # cut_selection_frequency = 100,
         print_level=2
     )
 
