@@ -1,3 +1,5 @@
 .ipynb_checkpoints
 *.svg
-results/*
+results/model_one/*
+results/model_two/*
+results/.ipynb_checkpoints
